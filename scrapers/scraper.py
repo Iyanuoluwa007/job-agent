@@ -114,6 +114,99 @@ def _extract_company(url: str) -> str:
     # === END PATCH 19C ====================================================
 
 
+# === PATCH 24: JSON-LD JobPosting extraction =================================
+# Some aggregator sites (notably Reed.co.uk) embed schema.org JobPosting
+# structured data in <script type="application/ld+json"> tags. This often
+# contains hiringOrganization.name — the REAL employer behind the listing —
+# which lets us recover real company names from URLs that would otherwise hit
+# AGGREGATOR_HOSTS and be skipped.
+#
+# CV-Library does NOT expose JobPosting JSON-LD (only BreadcrumbList) so this
+# patch only helps Reed and any future site with proper schema.org JobPosting
+# markup. CV-Library extraction is a future patch.
+import json as _json
+
+_JSONLD_RE = re.compile(
+    r'<script[^>]*type=["\']application/ld\+json["\'][^>]*>(.+?)</script>',
+    re.DOTALL | re.IGNORECASE,
+)
+
+
+def _extract_jsonld_job_posting(html: str) -> dict | None:
+    """Return first JobPosting JSON-LD item from page HTML, or None.
+
+    Tolerant of malformed JSON, missing fields, single-item-vs-array variation,
+    and @graph wrappers. Never raises.
+    """
+    if not html:
+        return None
+    try:
+        for raw_block in _JSONLD_RE.findall(html):
+            block = raw_block.strip()
+            if not block:
+                continue
+            try:
+                data = _json.loads(block)
+            except _json.JSONDecodeError:
+                continue
+            # Normalise to a flat list of items
+            items = []
+            if isinstance(data, list):
+                items = data
+            elif isinstance(data, dict):
+                if "@graph" in data and isinstance(data["@graph"], list):
+                    items = data["@graph"]
+                else:
+                    items = [data]
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                at_type = item.get("@type") or item.get("type") or ""
+                # @type may be a list or a string
+                type_str = " ".join(at_type) if isinstance(at_type, list) else str(at_type)
+                if "JobPosting" in type_str:
+                    return item
+    except Exception:
+        # Any unexpected error — silent fallback
+        pass
+    return None
+
+
+def _hiring_org_name(job_posting: dict) -> str:
+    """Extract hiringOrganization.name from a JobPosting dict.
+
+    hiringOrganization may be:
+      - dict with "name" field (common case)
+      - string (rare; the name itself)
+      - missing
+    """
+    if not isinstance(job_posting, dict):
+        return ""
+    org = job_posting.get("hiringOrganization")
+    if isinstance(org, dict):
+        return str(org.get("name") or "").strip()
+    if isinstance(org, str):
+        return org.strip()
+    return ""
+
+
+def _name_is_aggregator(name: str) -> bool:
+    """True if extracted name matches an aggregator slug (Reed self-tagged
+    itself as the employer, etc.) — guard against shipping
+    'applying at Reed' even when JSON-LD is present.
+    """
+    if not name:
+        return False
+    n = name.lower().strip()
+    n_slug = re.sub(r'[^a-z0-9]+', '', n)
+    aggregator_slugs = {
+        "reed", "cvlibrary", "indeed", "linkedin", "totaljobs",
+        "jobserve", "jobsite", "monster", "glassdoor", "cwjobs",
+    }
+    return n_slug in aggregator_slugs
+# === END PATCH 24 (helper) ==================================================
+
+
 # === PATCH 14: recruiter email extraction ==================================
 # Generic email prefixes that usually mean "no named recruiter".
 # When a JD has ONLY these, we still keep the first one as fallback.
@@ -213,10 +306,41 @@ class JobScraper:
                         pass
 
                 recruiter = extract_recruiter_email(description)
+
+                # === PATCH 24: JSON-LD override of company ================
+                # Default to URL-based company extraction (which returns ""
+                # for aggregator hosts). If JSON-LD JobPosting present and
+                # hiringOrganization.name is non-empty AND not itself an
+                # aggregator slug, override company. Also adopt cleaner
+                # JSON-LD title if present (Reed often has cleaner titles
+                # than the page <title> tag).
+                company = _extract_company(url)
+                try:
+                    page_html = page.content()
+                except Exception:
+                    page_html = ""
+                jsonld_job = _extract_jsonld_job_posting(page_html)
+                if jsonld_job:
+                    jsonld_employer = _hiring_org_name(jsonld_job)
+                    if jsonld_employer and not _name_is_aggregator(jsonld_employer):
+                        log.info(
+                            f"[SCRAPER] JSON-LD employer override: "
+                            f"url-extracted={company!r} -> "
+                            f"jsonld={jsonld_employer!r} for {url}"
+                        )
+                        company = jsonld_employer
+                    jsonld_title = (jsonld_job.get("title") or "").strip()
+                    if jsonld_title and len(jsonld_title) < 200:
+                        # Only override if URL-derived title looks generic
+                        # (e.g. "Reed | Job Title" style). Keep it simple:
+                        # always prefer JSON-LD title — it's curated.
+                        title = jsonld_title
+                # === END PATCH 24 =========================================
+
                 return {
                     "url"            : url,
                     "title"          : title,
-                    "company"        : _extract_company(url),
+                    "company"        : company,
                     "description"    : description[:8000],
                     "recruiter_email": recruiter,
                 }
