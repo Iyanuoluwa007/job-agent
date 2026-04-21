@@ -1,0 +1,67 @@
+﻿# Real config — never commit (contains live API keys, SMTP creds, personal email)
+config.yaml
+config.yaml.bak*
+config.yaml.bak
+
+# Database — local state, contains application history
+applications.db
+applications.db.bak_*
+*.db
+*.sqlite
+
+# Logs
+*.log
+agent.log
+
+# Auth cookies / session state
+linkedin_session.json
+*.session.json
+
+# CV / personal documents
+resume.pdf
+resume.txt
+*.pdf
+*.docx
+
+# Python build/cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# OS
+Thumbs.db
+desktop.ini
+
+# Tarballs / backup snapshots
+*.tar.gz
+*.zip
+*.bak
+*.tmp
+
+# Secrets / env files
+.env
+.env.*
+secrets/
+credentials/
+
+# Job agent temp files
+/tmp/
