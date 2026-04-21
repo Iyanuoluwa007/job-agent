@@ -290,6 +290,18 @@ class JobFinder:
         # share state via core.config._CFG_STATE.
         self.cfg = reload_config()
         # === END PATCH 21 ================================================
+        # === PATCH 22: refresh derived state from latest cfg =============
+        # Patch 21 refreshed self.cfg but self.roles / self.locations /
+        # self.blacklist / self.career_pages were still computed only in
+        # __init__. This re-derives them every sweep so edits to
+        # target_roles / blacklist_companies / career_pages take effect
+        # without container restart.
+        self.roles     = self.cfg.get("target_roles", [])
+        self.locations = self.cfg.get("target_locations", ["Manchester", "London", "Remote"])
+        self.blacklist = set(self.cfg.get("blacklist_companies", []))
+        extra = self.cfg.get("career_pages", []) or self.cfg.get("direct_company_urls", [])
+        self.career_pages = list(dict.fromkeys(BUILTIN_CAREER_PAGES + (extra or [])))
+        # === END PATCH 22 ================================================
         log.info("[FINDER] === Starting discovery sweep ===")
         urls = []
 
