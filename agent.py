@@ -74,15 +74,63 @@ conn.commit()
 import re as _re_url
 from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
 
+# === PATCH 25 (A): expanded tracking params ==============================
+# Aggregator sites (CV-Library especially) rotate session/search-context
+# params like sid=<UUID> on every URL. Without these in the strip list, the
+# same job is canonicalised as 17 distinct URLs, bypassing UNIQUE(url) and
+# causing duplicate APPLIED inserts. Conservative: add the common rotators.
 _TRACKING_PARAMS = {
+    # Standard marketing trackers
     "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term",
     "source", "filter", "ref", "gclid", "fbclid", "mc_cid", "mc_eid",
     "_ga", "mkt_tok",
+    # Aggregator-specific session/search-context rotators
+    "sid", "hlkw", "featured", "sourceofsearch", "externalorigin",
+    "hidesmi", "trackid", "refsrc", "origin", "s_keyword",
+    # Reed/Indeed/LinkedIn additions
+    "atsreferer", "cmpid", "jk", "from", "savedresume",
 }
+# === END PATCH 25 (A) =====================================================
+
+
+# === PATCH 25 (B): aggregator-aware canonicalization =====================
+# Some aggregators put the job ID in the URL path (CV-Library, Reed,
+# LinkedIn, Monster, etc.), others in a query param (Indeed uses ?jk=NNN).
+# Per-aggregator mapping: value is the single job-ID param name to KEEP
+# (everything else stripped), or None if job ID is in the path (strip all).
+_AGGREGATOR_JOB_ID_PARAM = {
+    "cv-library.co.uk":  None,    "cv-library.com":   None,
+    "reed.co.uk":        None,    "reed.com":         None,
+    "indeed.com":        "jk",    "indeed.co.uk":     "jk",
+    "linkedin.com":      None,
+    "totaljobs.com":     None,
+    "jobserve.com":      None,
+    "jobsite.co.uk":     None,
+    "monster.co.uk":     None,    "monster.com":      None,
+    "glassdoor.com":     None,    "glassdoor.co.uk":  None,
+    "cwjobs.co.uk":      None,
+    "adzuna.co.uk":      None,    "adzuna.com":       None,
+}
+
+
+def _aggregator_id_param(netloc: str):
+    """Return (matched_suffix, id_param) if host is an aggregator,
+    else (None, None). id_param is None if job ID is in path."""
+    n = netloc.lower().removeprefix("www.")
+    for host, id_param in _AGGREGATOR_JOB_ID_PARAM.items():
+        if n == host or n.endswith("." + host):
+            return host, id_param
+    return None, None
+# === END PATCH 25 (B, helpers) ===========================================
+
 
 def _canonical_url(url: str) -> str:
     """Normalise URL for dedup: lowercase host, strip fragment, drop tracking
-    params, remove trailing slash. Preserves meaningful path + query."""
+    params, remove trailing slash. Preserves meaningful path + query.
+
+    PATCH 25: for aggregator hosts, keep ONLY the per-aggregator job-ID
+    query param (if any), strip everything else. Covers CV-Library\'s
+    rotating sid-based duplicate storm and Indeed\'s jk=<id> pattern."""
     if not url:
         return ""
     try:
@@ -90,6 +138,19 @@ def _canonical_url(url: str) -> str:
         scheme = (parts.scheme or "https").lower()
         netloc = parts.netloc.lower()
         path   = parts.path.rstrip("/") or "/"
+        # === PATCH 25 (B): aggregator-aware canonicalization =============
+        agg_host, id_param = _aggregator_id_param(netloc)
+        if agg_host is not None:
+            if id_param:
+                # Keep only the job-ID param (Indeed: ?jk=NNN)
+                kept = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=False)
+                        if k.lower() == id_param.lower()]
+                query = urlencode(kept, doseq=True)
+            else:
+                # Job ID is in path; strip all query params
+                query = ""
+            return urlunsplit((scheme, netloc, path, query, ""))
+        # === END PATCH 25 (B) =============================================
         qs     = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=False)
                   if k.lower() not in _TRACKING_PARAMS]
         query  = urlencode(qs, doseq=True)

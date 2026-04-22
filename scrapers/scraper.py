@@ -37,6 +37,29 @@ TITLE_SELECTORS = [
 # skips the URL entirely rather than shipping letters with the aggregator
 # name as the employer. ATS patterns (lever, greenhouse, workday) still
 # take priority and extract the real company.
+# === PATCH 25 (C): aggregator JSON-LD whitelist ==========================
+# Some aggregators serve real schema.org JobPosting JSON-LD that lets patch
+# 24 recover a legitimate employer name. CV-Library is NOT one of them in
+# practice (inconsistent, sometimes serves but often scraped as aggregator
+# junk with rotating session tokens creating duplicate-application storms).
+# Reed is confirmed clean. Only hosts in this set are allowed to bypass
+# the AGGREGATOR_HOSTS skip via patch 24 override.
+AGGREGATOR_JSONLD_WHITELIST = frozenset({
+    "reed.co.uk", "reed.com",
+})
+
+
+def _host_in_jsonld_whitelist(url: str) -> bool:
+    try:
+        from urllib.parse import urlsplit
+        netloc = urlsplit(url).netloc.lower().removeprefix("www.")
+        return any(netloc == s or netloc.endswith("." + s)
+                   for s in AGGREGATOR_JSONLD_WHITELIST)
+    except Exception:
+        return False
+# === END PATCH 25 (C, helpers) ===========================================
+
+
 AGGREGATOR_HOSTS = {
     "cv-library.co.uk", "cv-library.com",
     "reed.co.uk", "reed.com",
@@ -319,7 +342,29 @@ class JobScraper:
                     page_html = page.content()
                 except Exception:
                     page_html = ""
-                jsonld_job = _extract_jsonld_job_posting(page_html)
+                # === PATCH 25 (C, gate): only apply JSON-LD override ===
+                # for aggregator URLs if the host is on the whitelist.
+                # Otherwise, even if JSON-LD is present, keep company=""
+                # so process_job skips the URL. Prevents CV-Library-style
+                # duplicate-application storms.
+                from urllib.parse import urlsplit as _urlsplit_p25
+                _host = _urlsplit_p25(url).netloc.lower().removeprefix("www.")
+                _is_aggregator = any(
+                    _host == s or _host.endswith("." + s)
+                    for s in AGGREGATOR_HOSTS
+                )
+                _is_whitelisted = _host_in_jsonld_whitelist(url)
+                if _is_aggregator and not _is_whitelisted:
+                    # Known aggregator, not whitelisted — skip JSON-LD override.
+                    if _extract_jsonld_job_posting(page_html):
+                        log.info(
+                            f"[SCRAPER] PATCH 25: suppressed JSON-LD override "
+                            f"for non-whitelisted aggregator host {_host!r}"
+                        )
+                    jsonld_job = None
+                else:
+                    jsonld_job = _extract_jsonld_job_posting(page_html)
+                # === END PATCH 25 (C, gate) ===========================
                 if jsonld_job:
                     jsonld_employer = _hiring_org_name(jsonld_job)
                     if jsonld_employer and not _name_is_aggregator(jsonld_employer):
