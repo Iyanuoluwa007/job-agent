@@ -42,7 +42,6 @@ jobs:
         env:
           DRY_RUN: ${{ inputs.dry_run }}
           BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
-
         run: |
           python tools/discovery/weekly_sweep.py | tee sweep_output.txt
           grep -E "^SUMMARY:" sweep_output.txt || true
