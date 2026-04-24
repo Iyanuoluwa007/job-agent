@@ -86,6 +86,7 @@ AGGREGATOR_HOSTS = {
     "totaljobs.com", "www.totaljobs.com",
     "adzuna.co.uk", "www.adzuna.co.uk",
     "jobs.theguardian.com", "jobserve.com", "monster.co.uk",
+    "roboticsjobs.co.uk", "www.roboticsjobs.co.uk",
 }
 
 NOISE_HOSTS = {
