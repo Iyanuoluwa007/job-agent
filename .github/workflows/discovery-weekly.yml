@@ -1,0 +1,60 @@
+name: discovery-weekly
+
+# System A of A+B discovery pipeline
+# Runs from GitHub Actions runners (rotating IPs -- not blocked by DDG/Bing)
+# Writes discovered_companies.json back to repo on successful new finds.
+
+on:
+  schedule:
+    # Sundays 06:00 UTC
+    - cron: '0 6 * * 0'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (don't commit, just log)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write  # required to commit discovered_companies.json
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4 lxml
+
+      - name: Run weekly sweep
+        id: sweep
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          python tools/discovery/weekly_sweep.py | tee sweep_output.txt
+          grep -E "^SUMMARY:" sweep_output.txt || true
+
+      - name: Commit if changed
+        if: ${{ inputs.dry_run != true }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add discovered_companies.json
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            NEW=$(grep -E "^SUMMARY: new=" sweep_output.txt | head -1 | sed 's/.*new=\([0-9]*\).*/\1/' || echo "?")
+            git commit -m "Discovery A weekly: +${NEW} companies ($(date -u +%Y-%m-%d))"
+            git push
+          fi
