@@ -26,6 +26,7 @@ All sources deduplicated. Keyword-filtered against target roles.
 
 import logging, re, time
 from urllib.parse import urlparse
+from pathlib import Path
 
 from core.config import reload_config  # === PATCH 21
 from scrapers.company_discovery import discover_companies, load_all_discovered_urls
@@ -45,9 +46,7 @@ BUILTIN_CAREER_PAGES = [
     "https://wayve.ai/careers",
     "https://oxa.tech/careers",
     "https://www.auar.com/careers",
-    "https://www.ocadogroup.com/careers",
     "https://jobs.lever.co/dyson",
-    "https://careers.bostondynamics.com",
     "https://www.anybotics.com/careers",
     "https://boards.greenhouse.io/agility-robotics",
     "https://jobs.lever.co/figure",
@@ -78,13 +77,27 @@ BUILTIN_CAREER_PAGES = [
     "https://jobs.lever.co/CMRSurgical",
     "https://careers.rolls-royce.com",
     "https://boards.greenhouse.io/hadrian",
-    "https://www.leonardo.com/en/careers",
-    "https://careers.qinetiq.com",
     # Energy / Sustainability
     "https://boards.greenhouse.io/origamienergy",
-    "https://careers.aecom.com",
     # General
     "https://jobs.lever.co/palantir",
+    # === PATCH 27: UK AI/ML/robotics refresh (Apr 24 2026) ============
+    "https://www.graphcore.ai/careers",
+    "https://www.darktrace.com/careers",
+    "https://www.synthesia.io/careers",
+    "https://elevenlabs.io/careers",
+    "https://boards.greenhouse.io/improbable",
+    "https://boards.greenhouse.io/tractable",
+    "https://jobs.lever.co/polyai",
+    "https://faculty.ai/careers",
+    "https://www.speechmatics.com/company/careers",
+    "https://www.quantexa.com/careers",
+    "https://www.featurespace.com/careers",
+    "https://humanloop.com/careers",
+    "https://onfido.com/careers",
+    "https://helsing.ai/jobs",
+    "https://boards.greenhouse.io/isomorphiclabs",
+    # === END PATCH 27 =================================================
 ]
 
 # ── Keywords — job URL or title must match at least one to be kept ────────────
