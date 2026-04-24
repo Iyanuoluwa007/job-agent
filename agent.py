@@ -617,6 +617,37 @@ def process_job(url: str):
         log.info(f"[SKIP] Already done: {url}")
         return
 
+    # === PATCH 30: LinkedIn daily apply cap ==============================
+    # Anti-bot on Apr 15 cut us off at 59 apps in 3.5h. This guard enforces
+    # a rolling-24h cap on LinkedIn applications BEFORE any scrape or LLM
+    # cost. Fails CLOSED if DB query errors -- safer to lose LinkedIn
+    # temporarily than risk account flag.
+    from urllib.parse import urlparse as _p30_urlparse
+    _p30_host = (_p30_urlparse(url).hostname or "").lower()
+    if _p30_host == "linkedin.com" or _p30_host.endswith(".linkedin.com"):
+        try:
+            _p30_cap = int(cfg.get("linkedin_daily_apply_cap", 10))
+        except (TypeError, ValueError):
+            _p30_cap = 10
+        try:
+            import sqlite3 as _p30_sq
+            with _p30_sq.connect("/app/applications.db") as _p30_c:
+                (_p30_count,) = _p30_c.execute(
+                    "SELECT COUNT(*) FROM applications "
+                    "WHERE url LIKE '%linkedin.com%' "
+                    "AND status = 'APPLIED' "
+                    "AND applied_at > datetime('now','-24 hours')"
+                ).fetchone()
+        except Exception as _p30_e:
+            log.warning(f"[LINKEDIN_CAP] query error -- failing closed: {_p30_e}")
+            db_log_skip(url, "linkedin_cap:query_error")
+            return
+        if _p30_count >= _p30_cap:
+            log.info(f"[SKIP] LinkedIn daily cap reached ({_p30_count}/{_p30_cap}): {url}")
+            db_log_skip(url, f"linkedin_cap:{_p30_count}/{_p30_cap}")
+            return
+    # === END PATCH 30 ====================================================
+
     log.info(f"[JOB] {url}")
 
     # 1. Scrape JD
