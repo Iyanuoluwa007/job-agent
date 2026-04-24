@@ -1,1 +1,26 @@
-{}
+{
+  "https://fieldworkrobotics.com/careers": {
+    "added_at": "2026-04-24T12:31:58Z",
+    "company": "Fieldworkrobotics",
+    "original_url": "https://fieldworkrobotics.com/careers/",
+    "source": "discovery-weekly-a"
+  },
+  "https://roboticsjobs.co.uk/career-advice/category/careers": {
+    "added_at": "2026-04-24T12:31:49Z",
+    "company": "Roboticsjobs",
+    "original_url": "https://roboticsjobs.co.uk/career-advice/category/careers",
+    "source": "discovery-weekly-a"
+  },
+  "https://www.appliedintegration.co.uk/careers": {
+    "added_at": "2026-04-24T12:31:32Z",
+    "company": "Appliedintegration",
+    "original_url": "https://www.appliedintegration.co.uk/careers",
+    "source": "discovery-weekly-a"
+  },
+  "https://www.ross-robotics.co.uk/careers": {
+    "added_at": "2026-04-24T12:31:28Z",
+    "company": "Ross Robotics",
+    "original_url": "https://www.ross-robotics.co.uk/careers",
+    "source": "discovery-weekly-a"
+  }
+}
