@@ -1,0 +1,193 @@
+# ========================================================================
+# Profile Answers Policy - Job Agent
+# ------------------------------------------------------------------------
+# Used by P32c / P33 / P35 for form auto-answering.
+# HARD RULE: Any question not covered here MUST be flagged human_review.
+#            Never invent answers to policy-sensitive questions.
+# File location: /opt/job-agent/job-agent/profile_answers.yaml
+# ========================================================================
+
+profile_answers:
+  right_to_work_uk: "yes"
+  visa_type: "Graduate Visa"
+  requires_sponsorship_current: "no"
+
+  requires_sponsorship_future_policy:
+    short_term_answer: "no"
+    permanent_answer: "yes"
+    unknown_answer: "yes"
+
+  role_duration_classification:
+    short_term_keywords:
+      - "contract"
+      - "fixed-term"
+      - "fixed term"
+      - "3-month"
+      - "6-month"
+      - "9-month"
+      - "12-month"
+      - "temporary"
+      - "temp role"
+      - "temp position"
+      - "internship"
+      - "intern"
+      - "fellow"
+      - "fellowship"
+      - "graduate programme"
+      - "graduate scheme"
+    permanent_keywords:
+      - "permanent"
+      - "full-time permanent"
+      - "full time permanent"
+      - "perm"
+
+  currently_based: "Manchester, UK"
+  open_to_relocation_uk: "yes"
+  open_to_relocation_uk_detail: "Open to any UK location"
+  preferred_uk_locations:
+    - "Manchester"
+    - "London"
+    - "Remote UK"
+  open_to_relocation_international: "no"
+
+  total_years_experience: 5
+  skill_years:
+    python: 5
+    cpp: 3
+    c_plus_plus: 3
+    machine_learning: 4
+    ai: 4
+    deep_learning: 4
+    robotics: 3
+    ros: 2
+    ros2: 2
+
+  salary_policy:
+    minimum_gbp: 55000
+    target_range_gbp: "55000-70000"
+    flexible: true
+    display_when_asked: "55,000 - 70,000 GBP (flexible, depending on role)"
+    prefer_not_to_say_acceptable: true
+
+  notice_period_weeks: 0
+  available_start: "immediately"
+
+  previously_interviewed_default: "prefer_not_to_say"
+  previously_interviewed_exceptions: []
+
+  skip_if_question_unresolvable: true
+  # === PATCH 35C: LLM fallback feature flag ===========================
+  # When TRUE, questions that no keyword rule matches will be sent to the
+  # LLM cascade (NIM Llama 3.3 fast tier -> Haiku fallback). The LLM picks
+  # from the form's actual options only - never invents - and confidence
+  # below 0.7 triggers fallback to next model. Default OFF: ship code,
+  # dry-run via tests, then flip manually after audit.
+  # =====================================================================
+  llm_fallback_enabled: true
+  # === PATCH 35E: dry-run mode for LLM fallback ===========
+  # When TRUE, the LLM cascade still runs and audit log records what
+  # the LLM would have answered, but the result is rewritten to
+  # skip_unknown before reaching the form. Net: zero LLM-derived
+  # answers reach real submissions during dry-run.
+  # ========================================================
+  llm_fallback_dry_run: true
+  max_form_human_review_per_day: 5
+  log_every_answered_question: true
+
+  # === Extended profile for LLM-fallback context (P35B) =========
+  # Read by _llm_answer_question alongside resume_text. Edit any value
+  # you disagree with - this file is your source of truth.
+  # ===============================================================
+
+  leadership:
+    has_managed_direct_reports: "no"
+    largest_team_managed: 0
+    has_mentored: "yes"
+    leadership_summary: "No formal management experience. Mentoring through teaching STEM to children."
+
+  programming_languages:
+    python: "expert"
+    cpp: "proficient"
+    arduino_c: "proficient"
+    java: "familiar"
+    matlab: "familiar"
+    javascript: "familiar"
+    typescript: "familiar"
+    bash: "working"
+    sql: "working"
+
+  hardware_platforms:
+    microcontrollers:
+      - "Arduino"
+      - "ESP32"
+      - "Raspberry Pi"
+    robot_platforms:
+      - "Turtlebot"
+      - "Custom mobile robot (ZetaBot)"
+    sensors:
+      - "Cameras (RGB, depth)"
+      - "LiDAR"
+      - "IMU"
+      - "GPS"
+      - "Ultrasonic"
+    simulation_environments:
+      - "CARLA"
+      - "Gazebo"
+      - "Isaac Sim"
+      - "Unity"
+
+  software_stack:
+    containerization:
+      - "Docker"
+      - "Docker Compose"
+    kubernetes_level: "familiar"
+    ml_frameworks:
+      - "PyTorch"
+      - "TensorFlow"
+      - "scikit-learn"
+      - "JAX"
+    databases:
+      - "PostgreSQL"
+      - "SQLite"
+      - "MongoDB"
+      - "Redis"
+    cicd_monitoring:
+      - "GitHub Actions"
+      - "Jenkins"
+      - "Datadog"
+      - "Grafana"
+    backend_frameworks:
+      - "FastAPI"
+      - "Flask"
+    frontend_frameworks:
+      - "Next.js"
+      - "React"
+
+  cloud_platforms:
+    aws: "familiar"
+    vercel: "proficient"
+    hetzner_vps: "proficient"
+
+  domain_experience:
+    robotics: true
+    autonomous_systems: true
+    machine_learning: true
+    deep_learning: true
+    nlp: "limited"
+    computer_vision: true
+    reinforcement_learning: "working"
+    quant_finance: true
+    accessibility: true
+    sign_language: true
+
+  open_source_visible_projects:
+    - "Sentinel Quant - dual-broker AI portfolio management (private)"
+    - "Signlytic AI - BSL recognition browser extension (public release)"
+    - "NGX Market Intelligence Dashboard (public-facing)"
+    - "ZetaBot - ESP32+Arduino mobile manipulator (Zenodo published)"
+    - "CARLA autonomous driving (MSc dissertation)"
+
+  policy_version: "1.0"
+  reviewed_by_user: true
+  review_date: "2026-04-24"
+  reviewed_by: "Iyanuoluwa Enoch Oke (session)"

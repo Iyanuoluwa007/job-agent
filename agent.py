@@ -243,13 +243,22 @@ except Exception:
 
 
 def already_processed(url):
+    # === PATCH 31B: exclude APPLIED_UNVERIFIED from dedup ==============
+    # Pre-P31a applications were phantom (_try_fill click_submit bug).
+    # Migration relabelled 352 rows from APPLIED to APPLIED_UNVERIFIED.
+    # Excluding that status from dedup lets the agent retry them with
+    # the fixed submit code. Other statuses (APPLIED, FORM_FAILED,
+    # ERROR:cover_letter, etc.) still block re-apply as before.
+    # ===================================================================
     canon = _canonical_url(url)
     r = conn.execute(
-        "SELECT 1 FROM applications WHERE url IN (?,?) "
+        "SELECT 1 FROM applications "
+        "WHERE url IN (?,?) AND status != 'APPLIED_UNVERIFIED' "
         "UNION SELECT 1 FROM skipped WHERE url IN (?,?)",
         (url, canon, url, canon)
     )
     return r.fetchone() is not None
+    # === END PATCH 31B =================================================
 
 def db_log_app(url, company, title, fit_score, status, cover, model, error=None, recruiter_email=None):
     conn.execute(
@@ -673,6 +682,27 @@ def process_job(url: str):
         log.info(f"[SKIP] Aggregator or unknown employer: {url}")
         db_log_skip(url, "unknown_employer:aggregator")
         return
+    # === PATCH 31E: aggregator host pre-CL guard ==========================
+    # Some aggregators (Reed, CV-Library) successfully expose the employer
+    # in JSON-LD, so _PATCH 19C_ above does not trigger. But the URL itself
+    # is still on the aggregator domain - the form has no directly-clickable
+    # submit button, so filler.apply will always fail with 'no matching
+    # button'. Avoid burning a cover-letter call (~$0.01 devstral) per
+    # aggregator URL: skip here before any LLM spend.
+    # Proper per-aggregator ATS support (Reed login + form flow, etc.)
+    # is planned for a future session.
+    # ======================================================================
+    try:
+        from urllib.parse import urlparse
+        _netloc = urlparse(url).netloc
+        _agg_host, _ = _aggregator_id_param(_netloc)
+        if _agg_host:
+            log.info(f"[SKIP] Aggregator URL ({_agg_host}), skipping before CL: {url}")
+            db_log_skip(url, f"aggregator_pre_cl:{_agg_host}")
+            return
+    except Exception as _e:
+        log.warning(f"[P31E] aggregator check error: {_e}")
+    # === END PATCH 31E ====================================================
 
     # 1a. Index-page guard (patch 10) -- reject careers landing pages scraped as jobs
     is_idx, idx_reason = _looks_like_index_page(url, title)
@@ -719,11 +749,16 @@ def process_job(url: str):
 
     # 4. Fill & submit — fully autonomous (no pause)
     try:
+        # === PATCH 33C: pass role_ctx so PolicyAnswers can classify role ===
+        # The dispatcher needs title + jd_text to decide short_term vs
+        # permanent (affects sponsorship-future answer among others).
         result = filler.apply(
             url=url,
             cover_letter=cover,
             resume_path=cfg["resume_pdf_path"],
+            role_ctx={"title": title, "jd_text": jd_text},
         )
+        # === END PATCH 33C =================================================
         status = "APPLIED" if result else "FORM_FAILED"
     except Exception as e:
         log.error(f"[FORM ERR] {e}")

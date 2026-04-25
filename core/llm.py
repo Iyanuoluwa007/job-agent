@@ -183,3 +183,87 @@ class NIMClient:
             except Exception as e:
                 log.warning(f"[NIM] {tier_name} failed: {e}")
         raise RuntimeError("All NIM models failed.")
+
+
+# === PATCH 35A: AnthropicClient ============================================
+# Wraps the Anthropic Messages API for use as a fallback LLM in P35.
+# Interface mirrors NIMClient.complete_system() so callers can swap clients.
+# Returns (text, model_name) tuple.
+# ============================================================================
+
+ANTHROPIC_BASE = "https://api.anthropic.com/v1"
+ANTHROPIC_VERSION = "2023-06-01"
+
+# Default Anthropic model for P35. Haiku is the cheapest current model and
+# adequate for structured-extraction tasks like form-question classification.
+DEFAULT_ANTHROPIC_MODEL = "claude-haiku-4-5-20251001"
+
+
+class AnthropicClient:
+    """
+    Anthropic Messages API client. Same calling shape as NIMClient.
+
+        client = AnthropicClient(api_key)
+        text, model = client.complete_system(system_prompt, user_prompt,
+                                             max_tokens=300, temperature=0.1)
+
+    Note: 'tier' kwarg is accepted for interface parity with NIMClient but
+    is currently ignored (Anthropic does not expose tier-style cascade).
+    """
+
+    def __init__(self, api_key: str, model: Optional[str] = None):
+        self.api_key = api_key
+        self.model   = model or DEFAULT_ANTHROPIC_MODEL
+        self._headers = {
+            "x-api-key"          : api_key,
+            "anthropic-version"  : ANTHROPIC_VERSION,
+            "content-type"       : "application/json",
+        }
+
+    def _call(self, system: str, user: str,
+              max_tokens: int, temperature: float, retries: int = 2) -> str:
+        payload = {
+            "model"       : self.model,
+            "max_tokens"  : max_tokens,
+            "temperature" : temperature,
+            "system"      : system,
+            "messages"    : [{"role": "user", "content": user}],
+        }
+        _RATE_LIMITER.acquire()
+        last_err = None
+        for attempt in range(retries):
+            try:
+                r = requests.post(
+                    f"{ANTHROPIC_BASE}/messages",
+                    headers=self._headers,
+                    json=payload,
+                    timeout=30,
+                )
+                if r.status_code == 429:
+                    wait = 2 ** attempt * 5
+                    log.warning(f"[ANTHROPIC] 429 rate limit - sleep {wait}s")
+                    time.sleep(wait)
+                    continue
+                r.raise_for_status()
+                data = r.json()
+                blocks = data.get("content") or []
+                # Anthropic returns a list of content blocks; collect text-type ones
+                text = "".join(b.get("text", "") for b in blocks if b.get("type") == "text")
+                if not text.strip():
+                    raise ValueError(f"Empty text content in response: {data}")
+                return text
+            except Exception as e:
+                last_err = e
+                log.debug(f"[ANTHROPIC] attempt {attempt} failed: {e}")
+                if attempt + 1 < retries:
+                    time.sleep(1)
+        raise RuntimeError(f"AnthropicClient call failed after {retries} retries: {last_err}")
+
+    def complete_system(self, system: str, user: str,
+                        tier: Optional[str] = None,
+                        max_tokens: int = 1000,
+                        temperature: float = 0.7) -> tuple:
+        """Same signature as NIMClient.complete_system. Returns (text, model)."""
+        text = self._call(system, user, max_tokens, temperature)
+        return text, self.model
+# === END PATCH 35A ==========================================================
