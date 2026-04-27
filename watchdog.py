@@ -237,6 +237,13 @@ def check_recent_applications():
         "index_page",                     # patch 10 careers-landing guard
         "leadgen:",                       # patch 11 leadgen detector
         "already_processed",              # normal dedup
+        # === PATCH 36-WD: recognise new safety-filter reasons ============
+        # All three appear during normal operation now and should not
+        # trigger watchdog alerts.
+        "aggregator_pre_cl:",             # patch 31E aggregator pre-CL skip
+        "aggregator:",                    # patch 31E generic aggregator skip
+        "location_skip:",                 # patch 36 geo-filter
+        # === END PATCH 36-WD ==============================================
     )
     cutoff = (datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=NO_APPS_HOURS)).strftime("%Y-%m-%d %H:%M:%S")
     rows = db_query(
