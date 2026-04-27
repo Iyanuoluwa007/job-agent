@@ -718,6 +718,36 @@ def process_job(url: str):
         db_log_skip(url, f"role_filter:{reason}")
         return
 
+    # === PATCH 36: geographic location filter =============================
+    # Reject roles that are explicitly located in non-UK regions when
+    # policy says no international relocation. Layered detection:
+    # title-level non-UK marker, JD "based in" patterns, multi-location
+    # awareness (KEEP if UK appears alongside non-UK markers).
+    # Saves cover-letter token spend on geo-mismatched roles, and
+    # protects against submitting misrepresented applications to roles
+    # like "Solutions Engineer India" or "Forward Deployed Engineer Spain".
+    # ======================================================================
+    try:
+        from core.location_filter import is_location_acceptable
+        # Read policy fields directly from profile_answers.yaml
+        import yaml as _p36_yaml
+        try:
+            with open("/app/profile_answers.yaml") as _p36_f:
+                _p36_pol = _p36_yaml.safe_load(_p36_f).get("profile_answers", {})
+        except Exception as _p36_e:
+            log.warning(f"[P36] could not load policy ({_p36_e}); skipping geo-filter")
+            _p36_pol = None
+        if _p36_pol is not None:
+            _p36_ok, _p36_reason = is_location_acceptable(title, jd_text, _p36_pol)
+            if not _p36_ok:
+                log.info(f"[SKIP] Location mismatch -> {_p36_reason}: {url}")
+                db_log_skip(url, f"location_skip:{_p36_reason[:80]}")
+                return
+            log.debug(f"[P36] location OK: {_p36_reason}")
+    except Exception as _p36_e:
+        log.warning(f"[P36] geo-filter error (continuing): {_p36_e}")
+    # === END PATCH 36 ======================================================
+
     # 2. Fit score — fast model
     try:
         fit = scorer.score(title, company, jd_text)
