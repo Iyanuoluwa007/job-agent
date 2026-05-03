@@ -1,8 +1,20 @@
 {
+  "https://aurrigo.com/careers": {
+    "added_at": "2026-05-03T08:04:00Z",
+    "company": "Aurrigo",
+    "original_url": "https://aurrigo.com/careers/",
+    "source": "discovery-weekly-a"
+  },
   "https://fieldworkrobotics.com/careers": {
     "added_at": "2026-04-24T12:31:58Z",
     "company": "Fieldworkrobotics",
     "original_url": "https://fieldworkrobotics.com/careers/",
+    "source": "discovery-weekly-a"
+  },
+  "https://machnet-robotics.com/careers": {
+    "added_at": "2026-05-03T08:04:02Z",
+    "company": "Machnet Robotics",
+    "original_url": "https://machnet-robotics.com/careers/",
     "source": "discovery-weekly-a"
   },
   "https://roboticsjobs.co.uk/career-advice/category/careers": {
